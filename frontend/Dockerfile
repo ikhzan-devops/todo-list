@@ -1,11 +1,12 @@
-FROM node:16-alpine
+FROM node:25-alpine
 
-ENV VUE_APP_API_URL=http://localhost:8080
+ENV VUE_APP_API_URL=http://todo-backend:8080
 
-RUN mkdir /app
 
-COPY . /app
+WORKDIR /app
 
-RUN yarn --cwd /app install
+COPY . .
 
-CMD ["yarn", "--cwd" ,"/app", "serve"]
+RUN yarn install
+
+CMD ["yarn", "serve"]
