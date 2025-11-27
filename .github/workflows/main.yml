@@ -13,12 +13,15 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # 1️⃣ Checkout repository
       - name: Checkout repository
         uses: actions/checkout@v3
 
+      # 2️⃣ Setup Docker Buildx
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      # 3️⃣ Login to GitHub Container Registry
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
         with:
@@ -26,44 +29,54 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Build BACKEND
+      # 4️⃣ Build & Push Backend
       - name: Build & Push Backend
         uses: docker/build-push-action@v5
         with:
           context: ./backend
           file: ./backend/Dockerfile
           push: true
-          tags: |
-            ghcr.io/ikhzan-devops/todo-list/backend:latest
+          tags: ghcr.io/ikhzan-devops/todo-list/backend:latest
 
-      # Build FRONTEND
+      # 5️⃣ Build & Push Frontend
       - name: Build & Push Frontend
         uses: docker/build-push-action@v5
         with:
           context: ./frontend
           file: ./frontend/Dockerfile
           push: true
-          tags: |
-            ghcr.io/ikhzan-devops/todo-list/frontend:latest
+          tags: ghcr.io/ikhzan-devops/todo-list/frontend:latest
 
-      # Deploy via SSH
+      # 6️⃣ Test SSH Connection
+      - name: Test SSH Connection
+        uses: appleboy/ssh-action@v0.1.7
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: 22
+          script: |
+            echo "SSH connection successful"
+
+      # 7️⃣ Deploy Docker containers
       - name: Deploy to Server
         uses: appleboy/ssh-action@v0.1.7
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
+          port: 22
           script: |
             echo "Pulling latest images..."
             docker pull ghcr.io/ikhzan-devops/todo-list/backend:latest
             docker pull ghcr.io/ikhzan-devops/todo-list/frontend:latest
-            
+
             echo "Stopping old containers..."
             docker stop backend || true
             docker rm backend || true
             docker stop frontend || true
             docker rm frontend || true
-            
+
             echo "Running new containers..."
             docker run -d --name backend -p 5000:5000 ghcr.io/ikhzan-devops/todo-list/backend:latest
             docker run -d --name frontend -p 3000:3000 ghcr.io/ikhzan-devops/todo-list/frontend:latest
