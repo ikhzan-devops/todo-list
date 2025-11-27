@@ -9,7 +9,7 @@ on:
 env:
   REGISTRY: ghcr.io/ikhzan-devops/todolist
   GH_REGISTRY: ghcr.io
-  IMAGE_NAME: todolist
+  IMAGE_NAME:  golang
   DOCKER_BUILDKIT: 1
 
 jobs:
