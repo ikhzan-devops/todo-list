@@ -9,7 +9,6 @@ on:
 env:
   REGISTRY: ghcr.io/ikhzan-devops/todolist
   GH_REGISTRY: ghcr.io
-  IMAGE_NAME:  golang
   DOCKER_BUILDKIT: 1
 
 jobs:
@@ -33,11 +32,21 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
 
-      - name: Build and push Docker image
+      - name: Build and push backend Docker image
         uses: docker/build-push-action@v5
         with:
+          context: ./backend
+          file: ./backend/Dockerfile
           push: true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          tags: ${{ env.REGISTRY }}/backend:${{ github.sha }}
+
+      - name: Build and push frontend Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: true
+          tags: ${{ env.REGISTRY }}/frontend:${{ github.sha }}
 
   deploy:
     runs-on: ubuntu-latest
@@ -61,7 +70,9 @@ jobs:
         with:
           command: deploy
           api-token: ${{ secrets.DEPLOYAJA_TOKEN }}
-          additional-args: --set container.image=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          additional-args: >
+            --set backend.image=${{ env.REGISTRY }}/backend:${{ github.sha }}
+            --set frontend.image=${{ env.REGISTRY }}/frontend:${{ github.sha }}
           
       - name: DeployAja Status
         uses: deployaja/deployaja-cli@v0.0.15
