@@ -1,82 +1,70 @@
-name: Build, Push & Deploy Docker Images
+name: Docker Build and Publish and Deploy to DeployAja
 
 on:
   push:
     branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
 
-permissions:
-  contents: read
-  packages: write
+env:
+  REGISTRY: ghcr.io/ikhzan-devops/todolist
+  GH_REGISTRY: ghcr.io
+  IMAGE_NAME: todolist
+  DOCKER_BUILDKIT: 1
 
 jobs:
-  build-and-deploy:
+  build-and-push:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
 
     steps:
-      # 1️⃣ Checkout repository
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      # 2️⃣ Setup Docker Buildx
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # 3️⃣ Login to GitHub Container Registry
-      - name: Login to GitHub Container Registry
+      - name: Log in to the Container registry
         uses: docker/login-action@v3
         with:
-          registry: ghcr.io
+          registry: ${{ env.GH_REGISTRY }}
           username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          password: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
 
-      # 4️⃣ Build & Push Backend
-      - name: Build & Push Backend
+      - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
-          context: ./backend
-          file: ./backend/Dockerfile
           push: true
-          tags: ghcr.io/ikhzan-devops/todo-list/backend:latest
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
 
-      # 5️⃣ Build & Push Frontend
-      - name: Build & Push Frontend
-        uses: docker/build-push-action@v5
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: DeployAja Plan
+        uses: deployaja/deployaja-cli@v0.0.15
         with:
-          context: ./frontend
-          file: ./frontend/Dockerfile
-          push: true
-          tags: ghcr.io/ikhzan-devops/todo-list/frontend:latest
-
-      # 6️⃣ Test SSH Connection
-      - name: Test SSH Connection
-        uses: appleboy/ssh-action@v0.1.7
+          command: plan
+          api-token: ${{ secrets.DEPLOYAJA_TOKEN }}
+          
+      - name: DeployAja Deploy
+        uses: deployaja/deployaja-cli@v0.0.15
         with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SERVER_SSH_KEY }}
-          port: 22
-          script: |
-            echo "SSH connection successful"
-
-      # 7️⃣ Deploy Docker containers
-      - name: Deploy to Server
-        uses: appleboy/ssh-action@v0.1.7
+          command: deploy
+          api-token: ${{ secrets.DEPLOYAJA_TOKEN }}
+          additional-args: --set container.image=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          
+      - name: DeployAja Status
+        uses: deployaja/deployaja-cli@v0.0.15
         with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SERVER_SSH_KEY }}
-          port: 22
-          script: |
-            echo "Pulling latest images..."
-            docker pull ghcr.io/ikhzan-devops/todo-list/backend:latest
-            docker pull ghcr.io/ikhzan-devops/todo-list/frontend:latest
-
-            echo "Stopping old containers..."
-            docker stop backend || true
-            docker rm backend || true
-            docker stop frontend || true
-            docker rm frontend || true
-
-            echo "Running new containers..."
-            docker run -d --name backend -p 5000:5000 ghcr.io/ikhzan-devops/todo-list/backend:latest
-            docker run -d --name frontend -p 3000:3000 ghcr.io/ikhzan-devops/todo-list/frontend:latest
+          command: status
+          api-token: ${{ secrets.DEPLOYAJA_TOKEN }}
